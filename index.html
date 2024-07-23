@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Alchemist's Nightmare!</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Medievalsharp&display=swap" rel="stylesheet">
+<style>
+    body {
+    font-family: 'Medievalsharp', cursive;
+    background-color: #2c3e50;
+    color: #ecf0f1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    }
+
+    #game-container {
+        background-color: #34495e;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 0 20px rgba(1, 1, 1, 0.5);
+        text-align: center;
+    }
+
+    h1 {
+        color: white;
+    }
+
+    #game-info {
+        display: flex;
+        justify-content: space-around;
+        margin-bottom: 20px;
+        font-size: 18px;
+    }
+
+    #maze {
+        display: grid;
+        grid-template-columns: repeat(12, 50px);
+        grid-template-rows: repeat(12, 50px);
+        gap: 2px;
+        background-color: #2c3e50;
+        padding: 10px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+
+    .box {
+        border: 1px solid #34495e;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: #7f8c8d;
+        font-size: 24px;
+        color: #ecf0f1;
+        transition: all 0.3s ease;
+    }
+
+    .box.path { 
+        background-color: #95a5a6; 
+    }
+
+    .box.wall { 
+        background-color: #7f8c8d; 
+    }
+    .player { 
+        background-color: #e74c3c; 
+    }
+    .ingredient { 
+        background-color: #2ecc71; 
+    }
+    .trap { 
+        background-color: #e67e22; 
+    }
+    .exit { 
+        background-color: #3498db; 
+    }
+
+    .hoverable:hover {
+        transform: scale(1.1);
+        box-shadow: 0 0 10px rgba(241,196,15,0.8);
+    }
+
+    #restart {
+        padding: 10px 20px;
+        font-size: 18px;
+        background-color: #f1c40f;
+        color: #2c3e50;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    #restart:hover {
+        background-color: #f39c12;
+        transform: scale(1.05);
+    }
+
+    #message {
+        font-size: 24px;
+        margin: 20px 0;
+        color: #f1c40f;
+    }
+    .box.hoverable:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 10px rgba(241,196,15,0.8);
+    }
+</style>
+</head>
+<div id="game-container">
+    <h1>Alchemist's Nightmare!</h1>
+    <div id="game-info">
+        <p>🧪 Ingredients: <span id="ingredients">0</span></p>
+        <p>👣 Moves: <span id="moves">0</span></p>
+        <p>🕒 Time: <span id="time">00:00</span></p>
+    </div>
+    <div id="maze"></div>
+    <div id="message"></div>
+    <button id="restart">Restart Game</button>
+</div>
+
+<script>
+let boardSize = 12;
+let maze = [];
+let playerRow, playerCol;
+let ingredients = 0;
+let totalIngredients = 0;
+let moves = 0;
+let gameTime = 0;
+let gameInterval;
+
+const roomTypes = ["S", "I", "X", "Z", "W"];
+const directions = {
+    ArrowUp: [-1, 0],
+    ArrowDown: [1, 0],
+    ArrowLeft: [0, -1],
+    ArrowRight: [0, 1]
+};
+
+function initMaze() {
+    clearInterval(gameInterval);
+    ingredients = 0;
+    totalIngredients = 0;
+    moves = 0;
+    gameTime = 0;
+    maze = Array(boardSize).fill().map(() => Array(boardSize).fill("W"));
+    [playerRow, playerCol] = [0, 0];
+    let exitRow = boardSize - 1;
+    let exitCol = boardSize - 1;
+  
+    maze[exitRow][exitCol] = "E"; 
+  
+    generatePath(playerRow, playerCol, exitRow, exitCol);
+   
+    maze[playerRow][playerCol] = "P";
+
+    fillRemainingCells();
+    revealNeighbors(playerRow, playerCol);
+    countIngredients();
+    updateGameInfo();
+    mazeBoard();
+    document.getElementById("message").textContent = "";
+    gameInterval = setInterval(updateTime, 1000);
+    console.log("Maze initialization complete");
+}
+function generatePath(startRow, startCol, endRow, endCol) {
+    let stack = [[startRow, startCol]];
+    let visited = new Set();
+
+    while (stack.length > 0) {
+        let [currentRow, currentCol] = stack.pop();
+        let key = `${currentRow},${currentCol}`;
+        if (!visited.has(key)) {
+            visited.add(key);
+            maze[currentRow][currentCol] = "S";
+            if (currentRow === endRow && currentCol === endCol) {
+                return true;
+            }
+            let directions = shuffle([[-1, 0], [1, 0], [0, -1], [0, 1]]);
+            for (let direction of directions) {
+                let newRow = currentRow + direction[0];
+                let newCol = currentCol + direction[1];
+
+                if (newRow >= 0 && newRow < boardSize && newCol >= 0 && newCol < boardSize) {
+                    stack.push([newRow, newCol]);
+                }
+            }
+        }
+    }
+    return false;
+}
+function shuffle(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+}
+function fillRemainingCells() {
+    for (let row = 0; row < boardSize; row++) {
+        for (let col = 0; col < boardSize; col++) {
+            if (maze[row][col] === "W") {
+                let rand = Math.random();
+                if (rand < 0.2) {
+                    maze[row][col] = "I";
+                } else if (rand < 0.3) {
+                    maze[row][col] = "X";
+                } else if (rand < 0.6) {
+                    maze[row][col] = "S";
+                } else {
+                    maze[row][col] = "W";
+                }
+            }
+        }
+    }
+}
+function placeRoomTypes() {
+    let exitPlaced = false;
+    for(let row = 0; row < boardSize; row++) {
+        for(let col = 0; col < boardSize; col++) {
+            if (!exitPlaced && Math.random() < 0.05) {
+                maze[row][col] = "E";
+                exitPlaced = true;
+            } else {
+                maze[row][col] = roomTypes[Math.floor(Math.random() * (roomTypes.length - 1))];
+            }
+        }
+    }
+    if (!exitPlaced) {
+        maze[boardSize - 1][boardSize - 1] = "E";
+    }
+}
+function revealNeighbors(row, col) {
+    for(let direction of Object.values(directions)) {
+        let newRow = row + direction[0];
+        let newCol = col + direction[1];
+        if(newRow >= 0 && newRow < boardSize && newCol >= 0 && newCol < boardSize) {
+            maze[newRow][newCol] = maze[newRow][newCol];
+        }
+    }
+}
+function countIngredients() {
+    totalIngredients = maze.flat().filter(cell => cell === "I").length;
+}
+
+function updateGameInfo() {
+    document.getElementById("ingredients").textContent = `${ingredients}/${totalIngredients}`;
+    document.getElementById("moves").textContent = moves;
+}
+
+function updateTime() {
+    gameTime++;
+    let minutes = Math.floor(gameTime / 60);
+    let seconds = gameTime % 60;
+    document.getElementById("time").textContent = 
+        `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function mazeBoard() {
+    const mazeElement = document.getElementById("maze");
+    if (!mazeElement) {
+        return;
+    }
+    mazeElement.innerHTML = "";
+    for(let row = 0; row < boardSize; row++) {
+        for(let col = 0; col < boardSize; col++) {
+            let boxDiv = document.createElement("div");
+            boxDiv.classList.add("box");
+            boxDiv.dataset.row = row;
+            boxDiv.dataset.col = col;
+            let boxContent = maze[row][col];
+            switch(boxContent) {
+                case "P": 
+                    boxDiv.textContent = "🧙";
+                    boxDiv.classList.add("player");
+                    break;
+                case "S": 
+                    boxDiv.textContent = "";
+                    boxDiv.classList.add("path");
+                    break;
+                case "I": 
+                    boxDiv.textContent = "🧪";
+                    boxDiv.classList.add("ingredient");
+                    break;
+                case "X":
+                    boxDiv.textContent = "💀";
+                    boxDiv.classList.add("trap");
+                    break;
+                case "E":
+                    boxDiv.textContent = "🚪";
+                    boxDiv.classList.add("exit");
+                    break;
+                case "W":
+                    boxDiv.textContent = "🧱";
+                    boxDiv.classList.add("wall");
+                    break;
+                //case "Z":
+                   // boxDiv.textContent = "🧩";
+                   // boxDiv.classList.add("puzzle");
+                default:
+                    boxDiv.textContent = "?";
+            }
+            if (isAdjacentToPlayer(row, col)) {
+                boxDiv.classList.add("hoverable");
+            }
+
+            boxDiv.addEventListener("click", () => movePlayer(row, col));
+            mazeElement.appendChild(boxDiv);
+        }
+    }
+}
+
+function isAdjacentToPlayer(row, col) {
+    return Math.abs(row - playerRow) <= 1 && Math.abs(col - playerCol) <= 1;
+}
+
+function movePlayer(newRow, newCol) {
+    if (!isAdjacentToPlayer(newRow, newCol)) {
+        return;
+    }
+    let boxType = maze[newRow][newCol];
+    if (boxType === "W") {
+        return;
+    }
+    maze[playerRow][playerCol] = "S";
+    playerRow = newRow;
+    playerCol = newCol;
+    maze[playerRow][playerCol] = "P";
+    moves++;
+    if (boxType === "I") {
+        ingredients++;
+    } else if (boxType === "X") {
+        endGame("Game Over! You stepped on a trap! 💀");
+        return;
+    } else if (boxType === "E") {
+        if (ingredients === totalIngredients) {
+            endGame(`Congratulations! You've escaped with all the ingredients! 🎉\nTime: ${document.getElementById("time").textContent}`);
+        } else {
+            endGame("You've reached the exit, but you haven't collected all ingredients! 🚪");
+        }
+        return;
+    }
+    updateGameInfo();
+    mazeBoard();
+}
+
+function endGame(message) {
+    clearInterval(gameInterval);
+    document.getElementById("message").textContent = message;
+}
+document.getElementById("restart").addEventListener("click", initMaze);
+initMaze();
+</script>
+</body>
+</html>
