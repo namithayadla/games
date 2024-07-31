@@ -26,9 +26,16 @@
     }
 
     h1 {
-        color: white;
+        font-size: 3rem;
+        text-align: center;
+        color: #ffffff;
+        margin-top: 150px;
+        margin-bottom: 20px;
+        padding: 10px; /* Add padding if necessary */
+        box-sizing: border-box; /* Include padding in width/height calculations */
+        overflow: visible; /* Ensure content is not hidden */
+        line-height: 1.2; /* Adjust line height for better spacing */
     }
-
     #game-info {
         display: flex;
         justify-content: space-around;
@@ -108,6 +115,73 @@
     transform: scale(1.1);
     box-shadow: 0 0 10px rgba(241,196,15,0.8);
     }
+    .box.reveal { 
+    background-color: #9b59b6; 
+    }
+    .box.boost { 
+        background-color: #f1c40f; 
+    }
+    .box.invincibility { 
+        background-color: #3498db; 
+    }
+    .box.power-up-active {
+    box-shadow: 0 0 10px rgba(241,196,15,0.8);
+    }
+    .box.enemy {
+        background-color: #e74c3c;
+    }
+
+    .box.revealed {
+        opacity: 1 !important;
+    }
+
+    #game-info {
+        display: flex;
+        justify-content: space-around;
+        margin-bottom: 20px;
+        font-size: 16px;
+        flex-wrap: wrap; 
+    }
+
+    #game-info p {
+        margin: 5px 10px;
+    }
+
+    #score {
+        font-weight: bold;
+        color: #f1c40f;
+    }
+
+    .box.reveal:hover, .box.boost:hover, .box.invincibility:hover {
+        transform: scale(1.1);
+        transition: transform 0.2s;
+    }
+
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+    }
+
+    .power-up-active {
+        animation: pulse 1s infinite;
+    }
+
+    @keyframes enemyMove {
+        0% { transform: translateX(0); }
+        25% { transform: translateX(-2px); }
+        75% { transform: translateX(2px); }
+        100% { transform: translateX(0); }
+    }
+
+    .enemy {
+        animation: enemyMove 0.5s infinite;
+    }
+    .box.exit { 
+    background-color: #3498db;
+    opacity: 1 !important;
+    }
+
 </style>
 </head>
 <div id="game-container">
@@ -116,6 +190,7 @@
         <p>🧪 Ingredients: <span id="ingredients">0</span></p>
         <p>👣 Moves: <span id="moves">0</span></p>
         <p>🕒 Time: <span id="time">00:00</span></p>
+        <p>Score: <span id="score">0</span></p>
     </div>
     <div id="maze"></div>
     <div id="message"></div>
@@ -131,8 +206,16 @@ let totalIngredients = 0;
 let moves = 0;
 let gameTime = 0;
 let gameInterval;
+let score = 0;
+let highScore = 0;
+let revealActive = false;
+let boostActive = false;
+let invincibilityActive = false;
+let enemies = [];
+let enemyInterval = setInterval(moveEnemies, 1000);
+let revealRadius = 2;
 
-const roomTypes = ["S", "I", "X", "Z", "W"];
+const roomTypes = ["S", "I", "X", "Z", "W", "R", "B", "V"];
 const directions = {
     ArrowUp: [-1, 0],
     ArrowDown: [1, 0],
@@ -146,12 +229,13 @@ function initMaze() {
     totalIngredients = 0;
     moves = 0;
     gameTime = 0;
+    score = 0;
     maze = Array(boardSize).fill().map(() => Array(boardSize).fill("W"));
     [playerRow, playerCol] = [0, 0];
     let exitRow = boardSize - 1;
     let exitCol = boardSize - 1;
   
-    maze[exitRow][exitCol] = "E"; 
+    maze[exitRow][exitCol] = "E";
   
     generatePath(playerRow, playerCol, exitRow, exitCol);
    
@@ -161,6 +245,8 @@ function initMaze() {
     revealNeighbors(playerRow, playerCol);
     countIngredients();
     updateGameInfo();
+    revealSurroundings();
+    initEnemies();
     mazeBoard();
     document.getElementById("message").textContent = "";
     gameInterval = setInterval(updateTime, 1000);
@@ -204,11 +290,17 @@ function fillRemainingCells() {
         for (let col = 0; col < boardSize; col++) {
             if (maze[row][col] === "W") {
                 let rand = Math.random();
-                if (rand < 0.2) {
+                if (rand < 0.3) {
                     maze[row][col] = "I";
-                } else if (rand < 0.3) {
+                } else if (rand < 0.4) {
                     maze[row][col] = "X";
-                } else if (rand < 0.6) {
+                } else if (rand < 0.45) {
+                    maze[row][col] = "R";
+                } else if (rand < 0.5) {
+                    maze[row][col] = "B";
+                } else if (rand < 0.55) {
+                    maze[row][col] = "V";
+                } else if (rand < 0.8) {
                     maze[row][col] = "S";
                 } else {
                     maze[row][col] = "W";
@@ -217,22 +309,9 @@ function fillRemainingCells() {
         }
     }
 }
-function placeRoomTypes() {
-    let exitPlaced = false;
-    for(let row = 0; row < boardSize; row++) {
-        for(let col = 0; col < boardSize; col++) {
-            if (!exitPlaced && Math.random() < 0.05) {
-                maze[row][col] = "E";
-                exitPlaced = true;
-            } else {
-                maze[row][col] = roomTypes[Math.floor(Math.random() * (roomTypes.length - 1))];
-            }
-        }
-    }
-    if (!exitPlaced) {
-        maze[boardSize - 1][boardSize - 1] = "E";
-    }
-}
+
+
+
 function revealNeighbors(row, col) {
     for(let direction of Object.values(directions)) {
         let newRow = row + direction[0];
@@ -249,6 +328,7 @@ function countIngredients() {
 function updateGameInfo() {
     document.getElementById("ingredients").textContent = `${ingredients}/${totalIngredients}`;
     document.getElementById("moves").textContent = moves;
+    document.getElementById("score").textContent = score;
 }
 
 function updateTime() {
@@ -258,30 +338,29 @@ function updateTime() {
     document.getElementById("time").textContent = 
         `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
-
 function mazeBoard() {
     const mazeElement = document.getElementById("maze");
     if (!mazeElement) {
         return;
     }
     mazeElement.innerHTML = "";
-    for(let row = 0; row < boardSize; row++) {
-        for(let col = 0; col < boardSize; col++) {
+    for (let row = 0; row < boardSize; row++) {
+        for (let col = 0; col < boardSize; col++) {
             let boxDiv = document.createElement("div");
             boxDiv.classList.add("box");
             boxDiv.dataset.row = row;
             boxDiv.dataset.col = col;
             let boxContent = maze[row][col];
-            switch(boxContent) {
-                case "P": 
+            switch (boxContent) {
+                case "P":
                     boxDiv.textContent = "🧙";
                     boxDiv.classList.add("player");
                     break;
-                case "S": 
+                case "S":
                     boxDiv.textContent = "";
                     boxDiv.classList.add("path");
                     break;
-                case "I": 
+                case "I":
                     boxDiv.textContent = "🧪";
                     boxDiv.classList.add("ingredient");
                     break;
@@ -290,33 +369,86 @@ function mazeBoard() {
                     boxDiv.classList.add("trap");
                     break;
                 case "E":
+                console.log("Exit found at", row, col);
                     boxDiv.textContent = "🚪";
                     boxDiv.classList.add("exit");
+                    boxDiv.classList.add("revealed");
                     break;
                 case "W":
                     boxDiv.textContent = "🧱";
                     boxDiv.classList.add("wall");
                     break;
-                //case "Z":
-                   // boxDiv.textContent = "🧩";
-                   // boxDiv.classList.add("puzzle");
+                case "R":
+                    boxDiv.textContent = "🔍";
+                    boxDiv.classList.add("reveal");
+                    break;
+                case "B":
+                    boxDiv.textContent = "⚡";
+                    boxDiv.classList.add("boost");
+                    break;
+                case "V":
+                    boxDiv.textContent = "🛡️";
+                    boxDiv.classList.add("invincibility");
+                    break;
                 default:
                     boxDiv.textContent = "?";
             }
-            if (isAdjacentToPlayer(row, col)) {
-                boxDiv.classList.add("hoverable");
-            }
-
             boxDiv.addEventListener("click", () => movePlayer(row, col));
             mazeElement.appendChild(boxDiv);
         }
     }
 }
 
+
+
+
+//add three enemies
+function initEnemies() {
+    enemies = [];
+    for (let i = 0; i < 3; i++) { 
+        let row = 0;
+        let col = 0;
+        do {
+            row = Math.floor(Math.random() * boardSize);
+            col = Math.floor(Math.random() * boardSize);
+        } while (maze[row][col] !== "S");
+        enemies.push({row, col, direction: Math.floor(Math.random() * 4)});
+    }
+}
+function moveEnemies() {
+    for (let enemy of enemies) {
+        let newRow = enemy.row + [-1, 0, 1, 0][enemy.direction];
+        let newCol = enemy.col + [0, 1, 0, -1][enemy.direction];
+        if (newRow >= 0 && newRow < boardSize && newCol >= 0 && newCol < boardSize && maze[newRow][newCol] === "S") {
+            enemy.row = newRow;
+            enemy.col = newCol;
+        } else {
+            enemy.direction = Math.floor(Math.random() * 4);
+        }
+    }
+    mazeBoard();
+    checkEnemyCollision();
+}
+function checkEnemyCollision() {
+    for (let enemy of enemies) {
+        if (enemy.row === playerRow && enemy.col === playerCol && !invincibilityActive) {
+            endGame("Game Over! You were caught by an enemy! 👾");
+        }
+    }
+}
 function isAdjacentToPlayer(row, col) {
     return Math.abs(row - playerRow) <= 1 && Math.abs(col - playerCol) <= 1;
 }
-
+function revealSurroundings() {
+    for (let row = Math.max(0, playerRow - revealRadius); row <= Math.min(boardSize - 1, playerRow + revealRadius); row++) {
+        for (let col = Math.max(0, playerCol - revealRadius); col <= Math.min(boardSize - 1, playerCol + revealRadius); col++) {
+            let boxDiv = document.querySelector(`.box[data-row="${row}"][data-col="${col}"]`);
+            if (boxDiv) {
+                boxDiv.classList.add("revealed");
+            }
+        }
+    }
+}
 function movePlayer(newRow, newCol) {
     if (!isAdjacentToPlayer(newRow, newCol)) {
         return;
@@ -332,7 +464,8 @@ function movePlayer(newRow, newCol) {
     moves++;
     if (boxType === "I") {
         ingredients++;
-    } else if (boxType === "X") {
+        score += 100;
+    } else if (boxType === "X" && !invincibilityActive) {
         endGame("Game Over! You stepped on a trap! 💀");
         return;
     } else if (boxType === "E") {
@@ -342,13 +475,87 @@ function movePlayer(newRow, newCol) {
             endGame("You've reached the exit, but you haven't collected all ingredients! 🚪");
         }
         return;
+    } else if (boxType === "R") {
+        activateReveal();
+    } else if (boxType === "B") {
+        activateBoost();
+    } else if (boxType === "V") {
+        activateInvincibility();
     }
     updateGameInfo();
+    revealSurroundings();
     mazeBoard();
 }
+function activateReveal() {
+    revealActive = true;
+    setTimeout(() => {
+        revealActive = false;
+        mazeBoard();
+    }, 5000); // reveal lasts for 5 seconds
+    revealMaze();
+}
 
+function activateBoost() {
+    boostActive = true;
+
+    for (let row = 0; row < boardSize; row++) {
+        for (let col = 0; col < boardSize; col++) {
+            if (maze[row][col] === "X") {
+                maze[row][col] = "X";
+            }
+        }
+    }
+
+    setTimeout(() => {
+        boostActive = false;
+
+        for (let row = 0; row < boardSize; row++) {
+            for (let col = 0; col < boardSize; col++) {
+                if (maze[row][col] === "X-revealed") {
+                    maze[row][col] = "X";
+                }
+            }
+        }
+
+        mazeBoard(); 
+    }, 10000); // boost lasts for 10 seconds
+}
+
+function activateInvincibility() {
+    invincibilityActive = true;
+    revealRadius = 3;
+    revealSurroundings();
+    setTimeout(() => {
+        invincibilityActive = false;
+        revealRadius = 2;
+        mazeBoard(); 
+    }, 15000);
+}
+
+function calculateBonus() {
+    let timeBonus = Math.max(0, 1000 - gameTime * 10);
+    let moveBonus = Math.max(0, 1000 - moves * 20);
+    return timeBonus + moveBonus;
+}
+function revealMaze() {
+    for (let row = 0; row < boardSize; row++) {
+        for (let col = 0; col < boardSize; col++) {
+            document.querySelector(`.box[data-row="${row}"][data-col="${col}"]`).classList.add("revealed");
+        }
+    }
+}
 function endGame(message) {
     clearInterval(gameInterval);
+    clearInterval(enemyInterval);
+    if (ingredients === totalIngredients) {
+        let bonus = calculateBonus();
+        score += bonus;
+        if (score > highScore) {
+            highScore = score;
+        }
+        message += `\nScore: ${score} (Bonus: ${bonus})`;
+        message += `\nHigh Score: ${highScore}`;
+    }
     document.getElementById("message").textContent = message;
 }
 document.getElementById("restart").addEventListener("click", initMaze);
