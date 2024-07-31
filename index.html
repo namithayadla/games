@@ -166,7 +166,7 @@
     .power-up-active {
         animation: pulse 1s infinite;
     }
-
+    
     @keyframes enemyMove {
         0% { transform: translateX(0); }
         25% { transform: translateX(-2px); }
@@ -276,7 +276,7 @@ function generatePath(startRow, startCol, endRow, endCol) {
             }
         }
     }
-    return false;
+    return generatePath(startRow, startCol, endRow, endCol);
 }
 function shuffle(array) {
     for (let i = array.length - 1; i > 0; i--) {
@@ -286,31 +286,46 @@ function shuffle(array) {
     return array;
 }
 function fillRemainingCells() {
+    const elements = [
+        { type: "I", emoji: "🧪", weight: 20 },  // Ingredient
+        { type: "X", emoji: "💀", weight: 15 },  // Trap
+        { type: "R", emoji: "🔍", weight: 5 },   // Reveal power-up
+        { type: "B", emoji: "⚡", weight: 5 },   // Boost power-up
+        { type: "V", emoji: "🛡️", weight: 5 },   // Invincibility power-up
+        { type: "W", emoji: "🧱", weight: 15 },  // Wall
+        { type: "S", emoji: "", weight: 35 }     // Empty space
+    ];
+
+    const totalWeight = elements.reduce((sum, element) => sum + element.weight, 0);
+
     for (let row = 0; row < boardSize; row++) {
         for (let col = 0; col < boardSize; col++) {
-            if (maze[row][col] === "W") {
-                let rand = Math.random();
-                if (rand < 0.3) {
-                    maze[row][col] = "I";
-                } else if (rand < 0.4) {
-                    maze[row][col] = "X";
-                } else if (rand < 0.45) {
-                    maze[row][col] = "R";
-                } else if (rand < 0.5) {
-                    maze[row][col] = "B";
-                } else if (rand < 0.55) {
-                    maze[row][col] = "V";
-                } else if (rand < 0.8) {
-                    maze[row][col] = "S";
-                } else {
-                    maze[row][col] = "W";
+            if (maze[row][col] !== "P" && maze[row][col] !== "E") {
+                let rand = Math.random() * totalWeight;
+                let cumulativeWeight = 0;
+
+                for (let element of elements) {
+                    cumulativeWeight += element.weight;
+                    if (rand < cumulativeWeight) {
+                        maze[row][col] = element.type;
+                        break;
+                    }
                 }
             }
         }
     }
+    const specialElements = ["I", "R", "B", "V"];
+    for (let elementType of specialElements) {
+        if (!maze.flat().includes(elementType)) {
+            let row, col;
+            do {
+                row = Math.floor(Math.random() * boardSize);
+                col = Math.floor(Math.random() * boardSize);
+            } while (maze[row][col] === "P" || maze[row][col] === "E");
+            maze[row][col] = elementType;
+        }
+    }
 }
-
-
 
 function revealNeighbors(row, col) {
     for(let direction of Object.values(directions)) {
@@ -372,7 +387,7 @@ function mazeBoard() {
                 console.log("Exit found at", row, col);
                     boxDiv.textContent = "🚪";
                     boxDiv.classList.add("exit");
-                    boxDiv.classList.add("revealed");
+                    boxDiv.classList.add("reveal");
                     break;
                 case "W":
                     boxDiv.textContent = "🧱";
@@ -398,10 +413,6 @@ function mazeBoard() {
         }
     }
 }
-
-
-
-
 //add three enemies
 function initEnemies() {
     enemies = [];
@@ -448,7 +459,12 @@ function revealSurroundings() {
             }
         }
     }
+    let exitDiv = document.querySelector(`.box[data-row="${boardSize-1}"][data-col="${boardSize-1}"]`);
+    if (exitDiv) {
+        exitDiv.classList.add("revealed");
+    }
 }
+
 function movePlayer(newRow, newCol) {
     if (!isAdjacentToPlayer(newRow, newCol)) {
         return;
@@ -540,7 +556,7 @@ function calculateBonus() {
 function revealMaze() {
     for (let row = 0; row < boardSize; row++) {
         for (let col = 0; col < boardSize; col++) {
-            document.querySelector(`.box[data-row="${row}"][data-col="${col}"]`).classList.add("revealed");
+            document.querySelector(`.box[data - row = "${row}"][data - col = "${col}"]`).classList.add("revealed");
         }
     }
 }
