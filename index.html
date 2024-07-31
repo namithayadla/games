@@ -232,14 +232,17 @@ function initMaze() {
     score = 0;
     maze = Array(boardSize).fill().map(() => Array(boardSize).fill("W"));
     [playerRow, playerCol] = [0, 0];
+   
     let exitRow = boardSize - 1;
     let exitCol = boardSize - 1;
   
     maze[exitRow][exitCol] = "E";
-  
+ 
     generatePath(playerRow, playerCol, exitRow, exitCol);
    
     maze[playerRow][playerCol] = "P";
+    maze[exitRow][exitCol] = "E";
+
 
     fillRemainingCells();
     revealNeighbors(playerRow, playerCol);
@@ -294,6 +297,8 @@ function fillRemainingCells() {
         { type: "V", emoji: "🛡️", weight: 5 },   // Invincibility power-up
         { type: "W", emoji: "🧱", weight: 15 },  // Wall
         { type: "S", emoji: "", weight: 35 }     // Empty space
+     
+         
     ];
 
     const totalWeight = elements.reduce((sum, element) => sum + element.weight, 0);
@@ -383,11 +388,10 @@ function mazeBoard() {
                     boxDiv.textContent = "💀";
                     boxDiv.classList.add("trap");
                     break;
-                case "E":
-                console.log("Exit found at", row, col);
+               
+                    case "E":
                     boxDiv.textContent = "🚪";
                     boxDiv.classList.add("exit");
-                    boxDiv.classList.add("reveal");
                     break;
                 case "W":
                     boxDiv.textContent = "🧱";
